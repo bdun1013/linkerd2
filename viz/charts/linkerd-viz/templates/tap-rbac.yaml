@@ -120,6 +120,18 @@ apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
   name: v1alpha1.tap.linkerd.io
+  {{- if and (.Values.tap.injectCaFrom) (.Values.tap.injectCaFromSecret) }}
+    {{- fail "tap.injectCaFrom and tap.injectCaFromSecret cannot both be set" }}
+  {{- end }}
+  {{- if or (.Values.tap.injectCaFrom) (.Values.tap.injectCaFromSecret) }}
+  annotations:
+  {{- if .Values.tap.injectCaFrom }}
+    cert-manager.io/inject-ca-from: {{ .Values.tap.injectCaFrom }}
+  {{- end }}
+  {{- if .Values.tap.injectCaFromSecret }}
+    cert-manager.io/inject-ca-from-secret: {{ .Values.tap.injectCaFromSecret }}
+  {{- end }}
+  {{- end }}
   labels:
     linkerd.io/extension: viz
     component: tap
@@ -131,7 +143,9 @@ spec:
   service:
     name: tap
     namespace: {{.Values.namespace}}
-{{- if and (.Values.tap.externalSecret) (empty .Values.tap.caBundle) }}
-  {{- fail "If tap.externalSecret is true then you need to provide tap.caBundle" }}
-{{- end }}
-  caBundle: {{ ternary (b64enc (trim $ca.Cert)) (b64enc (trim .Values.tap.caBundle)) (empty .Values.tap.caBundle) }}
+    {{- if and (.Values.tap.externalSecret) (empty .Values.tap.caBundle) (empty .Values.tap.injectCaFrom) (empty .Values.tap.injectCaFromSecret) }}
+      {{- fail "If tap.externalSecret is true, then you need to provide tap.caBundle, tap.injectCaFrom, or tap.injectCaFromSecret" }}
+    {{- end }}
+    {{- if and (empty .Values.tap.injectCaFrom) (empty .Values.tap.injectCaFromSecret) }}
+    caBundle: {{ ternary (b64enc (trim $ca.Cert)) (b64enc (trim .Values.tap.caBundle)) (empty .Values.tap.caBundle) }}
+    {{- end }}
